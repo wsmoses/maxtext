@@ -24,7 +24,7 @@ from typing import Any, Union
 
 import jax
 from jax.experimental.compilation_cache import compilation_cache
-from layers.attentions import AttentionType
+from .layers.attentions import AttentionType
 import accelerator_to_spec_map
 import max_logging
 import max_utils
