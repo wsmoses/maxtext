@@ -11,7 +11,7 @@ gcsfs
 google-cloud-aiplatform==1.61.0
 google-cloud-storage
 grain-nightly
-https://github.com/wsmoses/flax/archive/d854bf3c29c5048c1f2265d3659ba995bf218476.tar.gz
+flax@git+https://github.com/wsmoses/flax@d854bf3c29c5048c1f2265d3659ba995bf218476
 ml-collections
 ml-goodput-measurement
 numpy
