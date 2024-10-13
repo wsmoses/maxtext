@@ -3,8 +3,8 @@ jaxlib
 absl-py
 array-record
 aqtp
-cloud-accelerator-diagnostics
-cloud-tpu-diagnostics
+# cloud-accelerator-diagnostics
+# cloud-tpu-diagnostics
 datasets
 gcsfs
 # google-cloud-aiplatform==1.61.0
