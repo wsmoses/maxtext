@@ -27,7 +27,7 @@ dynamic = ["dependencies"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
-i
+
 [tool.setuptools.packages.find]
 where = ["src"] # <-- this changed
 
