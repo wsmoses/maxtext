@@ -12,7 +12,7 @@ google-cloud-storage
 grain-nightly
 flax@git+https://github.com/wsmoses/flax@d854bf3c29c5048c1f2265d3659ba995bf218476
 ml-collections
-ml-goodput-measurement
+# ml-goodput-measurement
 numpy
 optax
 protobuf # ==3.20.3
@@ -29,7 +29,7 @@ tensorboardx
 tensorboard-plugin-profile
 tiktoken
 transformers
-mlperf-logging@git+https://github.com/mlperf/logging.git
+# mlperf-logging@git+https://github.com/mlperf/logging.git
 google-jetstream
 jsonlines
 pathwaysutils@git+https://github.com/google/pathways-utils.git
