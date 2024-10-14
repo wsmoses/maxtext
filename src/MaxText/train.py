@@ -730,12 +730,12 @@ def train_loop(config, state=None, prejit=lambda x: x):
   if checkpoint_manager is not None:
     checkpoint_manager.wait_until_finished()
 
-  print("final_metrics ", metrics)
+  # print("final_metrics ", metrics)
   # write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, config.steps - 1, config)  # final step metrics
   # close_summary_writer(writer)
   # record_goodput(recorder, config, recorder.record_job_end_time if recorder else None)
   # clear_buffered_metrics()
-  return metric
+  return metrics
 
 
 def main(argv: Sequence[str]) -> None:
