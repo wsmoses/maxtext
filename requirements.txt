@@ -5,7 +5,7 @@ array-record
 flax@git+https://github.com/wsmoses/flax@d854bf3c29c5048c1f2265d3659ba995bf218476
 ml-collections
 numpy
-optax
+optax@git+https://github.com/wsmoses/optax@91f3359dc4d0886d714fc2db213192889012731a
 protobuf # ==3.20.3
 pylint
 pytest
