@@ -22,8 +22,6 @@ import ml_collections
 import jax
 
 from sys import platform
-if platform == "linux" or platform == "linux2":
-  import grain.python as grain
 
 from . import _input_pipeline_utils
 from . import _grain_tokenizer

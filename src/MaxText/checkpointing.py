@@ -21,8 +21,6 @@ from absl import flags
 from etils import epath
 from flax.training import orbax_utils, train_state
 from sys import platform
-if platform == "linux" or platform == "linux2":
-  import grain.python as grain
 import jax
 from .max_logging import *
 from .multihost_dataloading import MultiHostDataLoadIterator

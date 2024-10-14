@@ -33,10 +33,6 @@ from jax.sharding import PartitionSpec
 from jax.sharding import NamedSharding
 from jax.sharding import Mesh
 
-from sys import platform
-if platform == "linux" or platform == "linux2":
-  import grain.python as grain
-
 from .max_logging import *
 
 

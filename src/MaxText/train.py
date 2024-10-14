@@ -31,8 +31,6 @@ from absl import app
 from flax import linen as nn
 from flax.linen import partitioning as nn_partitioning
 from sys import platform
-if platform == "linux" or platform == "linux2":
-  import grain.python as grain
 import jax
 import numpy as np
 import orbax.checkpoint
