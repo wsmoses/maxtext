@@ -15,15 +15,15 @@ limitations under the License.
 """
 
 from flax import linen as nn
-import common_types
+from ..common_types import *
 import jax.numpy as jnp
 
-from layers import normalizations
-from layers import attentions
-from layers import initializers
-from layers import embeddings
-from layers import linears
-from layers import quantizations
+from ..layers import normalizations
+from ..layers import attentions
+from ..layers import initializers
+from ..layers import embeddings
+from ..layers import linears
+from ..layers import quantizations
 
 from typing import Optional
 
@@ -32,16 +32,6 @@ RMSNorm = normalizations.RMSNorm
 NdInitializer = initializers.NdInitializer
 Attention = attentions.Attention
 MlpBlock = linears.MlpBlock
-Config = common_types.Config
-AxisNames = common_types.AxisNames
-Mesh = common_types.Mesh
-ScanIn = common_types.ScanIn
-DType = common_types.DType
-Array = common_types.Array
-BATCH = common_types.BATCH
-LENGTH = common_types.LENGTH
-HEAD = common_types.HEAD
-D_KV = common_types.D_KV
 
 
 nd_dense_init = initializers.nd_dense_init

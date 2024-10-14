@@ -23,13 +23,11 @@ from jax import lax
 from jax.experimental import pallas as pl
 from jax.experimental.pallas import tpu as pltpu
 import jax.numpy as jnp
-import common_types
+from ..common_types import *
 
 from jax.experimental import shard_map
 
 
-BATCH = common_types.BATCH
-DEFAULT_MASK_VALUE = common_types.DEFAULT_MASK_VALUE
 shard_map = shard_map.shard_map
 
 

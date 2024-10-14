@@ -20,7 +20,7 @@ from typing import Dict, Iterable, Union, Literal, Sequence, Collection, List
 from pathlib import Path
 import tensorflow as tf
 import tensorflow_text as tftxt
-import max_logging
+from .max_logging import *
 import tiktoken
 from tiktoken.load import load_tiktoken_bpe
 
@@ -72,7 +72,7 @@ class TikTokenTokenizer:
     )
     self.eos = add_eos
     self.bos = add_bos
-    max_logging.log(f"Reloaded tiktoken model from {model_path}")
+    log(f"Reloaded tiktoken model from {model_path}")
 
     self.n_words: int = self.model.n_vocab
     # BOS / EOS token IDs
@@ -83,7 +83,7 @@ class TikTokenTokenizer:
         self.special_tokens["<|end_of_text|>"],
         self.special_tokens["<|eot_id|>"],
     }
-    max_logging.log(f"#words: {self.n_words} - BOS ID: {self.bos_id} - EOS ID: {self.eos_id}")
+    log(f"#words: {self.n_words} - BOS ID: {self.bos_id} - EOS ID: {self.eos_id}")
 
   def encode(
       self,
@@ -190,7 +190,7 @@ class SentencePieceTokenizer:
   """
 
   def __init__(self, model_path: str, add_bos: bool, add_eos: bool):
-    max_logging.log(f"Tokenizer path: {model_path}")
+    log(f"Tokenizer path: {model_path}")
     with tf.io.gfile.GFile(model_path, "rb") as model_fp:
       sp_model = model_fp.read()
     self.sp_tokenizer = tftxt.SentencepieceTokenizer(model=sp_model, add_bos=add_bos, add_eos=add_eos, reverse=False)
@@ -204,7 +204,7 @@ class SentencePieceTokenizer:
 
 def build_tokenizer(tokenizer_path, add_bos, add_eos):
   """Loads the tokenizer at `tokenizer_path`"""
-  max_logging.log(f"Tokenizer path: {tokenizer_path}")
+  log(f"Tokenizer path: {tokenizer_path}")
   if "tiktoken" in tokenizer_path:
     return TikTokenTokenizer(tokenizer_path, add_bos, add_eos)
   else:

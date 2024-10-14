@@ -20,10 +20,12 @@ from typing import Any, Optional, Union
 from absl import flags
 from etils import epath
 from flax.training import orbax_utils, train_state
-import grain.python as grain
+from sys import platform
+if platform == "linux" or platform == "linux2":
+  import grain.python as grain
 import jax
-import max_logging
-from multihost_dataloading import MultiHostDataLoadIterator
+from .max_logging import *
+from .multihost_dataloading import MultiHostDataLoadIterator
 import numpy as np
 import orbax.checkpoint as ocp
 import orbax.checkpoint.experimental.emergency.checkpoint_manager as emergency_checkpoint_manager
@@ -37,7 +39,7 @@ LocalCheckpointOptions = emergency_checkpoint_manager.LocalCheckpointOptions
 PersistentCheckpointOptions = emergency_checkpoint_manager.PersistentCheckpointOptions
 
 abstract_logger = ocp.logging.abstract_logger
-cloud_logger = ocp.logging.cloud_logger
+# cloud_logger = ocp.logging.cloud_logger
 composite_logger = ocp.logging.composite_logger
 standard_logger = ocp.logging.standard_logger
 
@@ -54,9 +56,9 @@ def create_orbax_checkpoint_manager(
 ):
   """Returns specified Orbax (async or not) CheckpointManager or None if checkpointing is disabled."""
   if not enable_checkpointing:
-    max_logging.log("Checkpointing disabled, not creating checkpoint manager.")
+    log("Checkpointing disabled, not creating checkpoint manager.")
     return None
-  max_logging.log("Creating checkpoint manager...")
+  log("Creating checkpoint manager...")
   p = epath.Path(checkpoint_dir)
 
   if dataset_type == "grain":
@@ -80,7 +82,7 @@ def create_orbax_checkpoint_manager(
       ),
       logger=orbax_logger,
   )
-  max_logging.log("Checkpoint manager created!")
+  log("Checkpoint manager created!")
   return mngr
 
 
@@ -95,7 +97,7 @@ def create_orbax_emergency_checkpoint_manager(
 ):
   """Returns an emergency checkpoint."""
   flags.FLAGS.experimental_orbax_use_distributed_process_id = True
-  max_logging.log("Creating emergency checkpoint manager...")
+  log("Creating emergency checkpoint manager...")
 
   options = emergency_checkpoint_manager.CheckpointManagerOptions(
       local=LocalCheckpointOptions(save_interval_steps=local_save_interval_steps),
@@ -111,7 +113,7 @@ def create_orbax_emergency_checkpoint_manager(
       logger=orbax_logger,
   )
 
-  max_logging.log("Emergency checkpoint manager created!")
+  log("Emergency checkpoint manager created!")
   return emergency_mngr
 
 
@@ -172,11 +174,11 @@ def load_state_if_possible(
   """
 
   if checkpoint_manager is not None:
-    max_logging.log("checkpoint manager exists so trying to load this run's existing checkpoint")
+    log("checkpoint manager exists so trying to load this run's existing checkpoint")
 
     latest_step = checkpoint_manager.latest_step()
     if latest_step is not None:
-      max_logging.log(
+      log(
           f"restoring from this run's directory latest step \
           {latest_step}"
       )
@@ -251,14 +253,14 @@ def load_state_if_possible(
     restored_params = load_params_from_path(load_parameters_from_path, abstract_unboxed_pre_state.params)
     return None, restored_params
   elif load_full_state_from_path != "":
-    max_logging.log(f"restoring full state from {load_full_state_from_path=}")
+    log(f"restoring full state from {load_full_state_from_path=}")
     p = epath.Path(load_full_state_from_path)
     ckptr = ocp.StandardCheckpointer()
     restored = ckptr.restore(p, abstract_unboxed_pre_state)
     return {"items": restored}, None
 
   else:
-    max_logging.log("No existing checkpoints found, not restoring checkpoint.")
+    log("No existing checkpoints found, not restoring checkpoint.")
     return None, None
 
 
@@ -271,21 +273,21 @@ def setup_checkpoint_logger(config) -> composite_logger.CompositeLogger | None:
   """
   orbax_cloud_logger = None
   orbax_standard_logger = None
-  max_logging.log("Setting up checkpoint logger...")
-  if config.enable_checkpoint_cloud_logger:
-    logger_name = f"checkpoint_{config.run_name}"
-    options = cloud_logger.CloudLoggerOptions(job_name=config.run_name, logger_name=logger_name)
-    orbax_cloud_logger = cloud_logger.CloudLogger(options=options)
-    max_logging.log("Successfully set up checkpoint cloud logger.")
+  log("Setting up checkpoint logger...")
+  # if config.enable_checkpoint_cloud_logger:
+  #   logger_name = f"checkpoint_{config.run_name}"
+  #   options = cloud_logger.CloudLoggerOptions(job_name=config.run_name, logger_name=logger_name)
+  #   orbax_cloud_logger = cloud_logger.CloudLogger(options=options)
+  #   log("Successfully set up checkpoint cloud logger.")
 
   if config.enable_checkpoint_standard_logger:
     orbax_standard_logger = standard_logger.StandardLogger()
-    max_logging.log("Successfully set up checkpoint standard logger.")
+    log("Successfully set up checkpoint standard logger.")
 
   orbax_logger = None
-  if orbax_cloud_logger is not None and orbax_standard_logger is not None:
-    orbax_logger = composite_logger.CompositeLogger(orbax_cloud_logger, orbax_standard_logger)
-    max_logging.log("Successfully set up checkpoint composite logger.")
+  # if orbax_cloud_logger is not None and orbax_standard_logger is not None:
+  #   orbax_logger = composite_logger.CompositeLogger(orbax_cloud_logger, orbax_standard_logger)
+  #   log("Successfully set up checkpoint composite logger.")
 
   return orbax_logger
 
@@ -293,7 +295,7 @@ def setup_checkpoint_logger(config) -> composite_logger.CompositeLogger | None:
 def load_params_from_path(load_parameters_from_path, abstract_unboxed_params):
   """Load decode params from checkpoint at specified path."""
   assert load_parameters_from_path, "load_parameters_from_path is not defined."
-  max_logging.log(f"restoring params from {load_parameters_from_path}")
+  log(f"restoring params from {load_parameters_from_path}")
   ckpt = epath.Path(load_parameters_from_path)
   ckptr = ocp.PyTreeCheckpointer()
   # This is a memory optimization. We don't want to restore the entire checkpoint - only the params.

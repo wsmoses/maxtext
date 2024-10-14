@@ -18,7 +18,7 @@ from flax import linen as nn
 from jax.sharding import Mesh
 from typing import Optional
 from layers import quantizations
-import common_types
+from ..common_types import *
 
 # pytype: disable=attribute-error
 
@@ -26,7 +26,7 @@ import common_types
 class SimpleDecoderLayer(nn.Module):
   """Decoder layer consisting of a single [embed, embed] weight matrix"""
 
-  config: common_types.Config
+  config: Config
   mesh: Mesh
   quant: Optional[quantizations.AqtQuantization] = None
 
@@ -47,7 +47,7 @@ class SimpleDecoderLayer(nn.Module):
 class SimpleMlpDecoderLayer(nn.Module):
   """Decoder layer consisting of [embed,mlp] followed by an [mlp,embed] matmul."""
 
-  config: common_types.Config
+  config: Config
   mesh: Mesh
   quant: Optional[quantizations.AqtQuantization] = None
 

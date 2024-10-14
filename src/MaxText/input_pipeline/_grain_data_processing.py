@@ -20,12 +20,15 @@ import glob
 
 import ml_collections
 import jax
-import grain.python as grain
 
-from input_pipeline import _input_pipeline_utils
-from input_pipeline import _grain_tokenizer
+from sys import platform
+if platform == "linux" or platform == "linux2":
+  import grain.python as grain
 
-import multihost_dataloading
+from . import _input_pipeline_utils
+from . import _grain_tokenizer
+
+from .. import multihost_dataloading
 
 
 def get_datasets(data_file_pattern):

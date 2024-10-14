@@ -23,7 +23,7 @@ from aqt.jax.v2 import aqt_tensor
 from aqt.jax.v2.flax import aqt_flax
 from aqt.jax.v2 import tiled_dot_general
 from aqt.jax.v2 import calibration
-import common_types
+from ..common_types import *
 from dataclasses import dataclass
 import flax.linen as nn
 import jax
@@ -34,12 +34,6 @@ from typing import Tuple, Sequence
 MAX_INT8 = 127.5
 MAX_INT4 = 7.5
 
-Array = common_types.Array
-Config = common_types.Config
-AxisIdxes = common_types.AxisIdxes
-AxisNames = common_types.AxisNames
-CACHE_HEADS = common_types.CACHE_HEADS
-CACHE_KV = common_types.CACHE_KV
 KVTensor = aqt_tensor.QTensor
 
 

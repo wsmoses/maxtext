@@ -20,7 +20,7 @@ import os
 import subprocess
 import shutil
 
-import max_logging
+from . import max_logging
 
 import jax
 

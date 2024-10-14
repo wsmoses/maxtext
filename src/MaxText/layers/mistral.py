@@ -20,25 +20,20 @@ limitations under the License.
 
 
 from typing import Optional
-from layers import quantizations
-from layers import linears
-from layers import initializers
+from ..layers import quantizations
+from ..layers import linears
+from ..layers import initializers
 import jax
 from jax.sharding import Mesh
 from flax import linen as nn
 import jax.numpy as jnp
-from layers import attentions
-from layers import embeddings
-from layers import normalizations
-from layers import models
-import common_types
+from ..layers import attentions
+from ..layers import embeddings
+from ..layers import normalizations
+from ..layers import models
+from ..common_types import *
 import max_logging
 
-Array = common_types.Array
-Config = common_types.Config
-DType = common_types.DType
-Mesh = common_types.Mesh
-ScanIn = common_types.ScanIn
 
 Embed = embeddings.Embed
 Attention = attentions.Attention

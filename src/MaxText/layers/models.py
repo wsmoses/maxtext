@@ -23,18 +23,13 @@ from flax import linen as nn
 import functools
 import jax
 import jax.numpy as jnp
-import common_types
-from layers import attentions
-from layers import embeddings
-from layers import linears
-from layers import normalizations, quantizations
-from layers import pipeline
+from ..common_types import *
+from ..layers import attentions
+from ..layers import embeddings
+from ..layers import linears
+from ..layers import normalizations, quantizations
+from ..layers import pipeline
 
-Array = common_types.Array
-Config = common_types.Config
-DType = common_types.DType
-Mesh = common_types.Mesh
-ScanIn = common_types.ScanIn
 
 Embed = embeddings.Embed
 Attention = attentions.Attention
@@ -257,7 +252,7 @@ class Decoder(nn.Module):
       decoder_positions,
       decoder_segment_ids=None,
       deterministic=False,
-      model_mode=common_types.MODEL_MODE_TRAIN,
+      model_mode=MODEL_MODE_TRAIN,
   ):
     cfg = self.config
     mesh = self.mesh
@@ -452,14 +447,14 @@ class Transformer(nn.Module):
       decoder_positions,
       decoder_segment_ids=None,
       enable_dropout=True,
-      model_mode=common_types.MODEL_MODE_TRAIN,
+      model_mode=MODEL_MODE_TRAIN,
   ):
     """Applies Transformer decoder-branch on encoded-input and target."""
 
-    if decoder_segment_ids is not None and model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE:
+    if decoder_segment_ids is not None and model_mode == MODEL_MODE_AUTOREGRESSIVE:
       raise ValueError(
           f"During autoregressive decoding we assume the tokens are in the active sequence"
-          f" which is always {common_types.DECODING_ACTIVE_SEQUENCE_INDICATOR}."
+          f" which is always {DECODING_ACTIVE_SEQUENCE_INDICATOR}."
       )
 
     logits = self.decoder(

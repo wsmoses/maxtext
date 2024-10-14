@@ -20,7 +20,7 @@ import numpy as np
 from jax import numpy as jnp
 from flax.core import meta
 from flax import linen as nn
-import common_types
+from ..common_types import *
 import functools
 from typing import Any
 
@@ -42,9 +42,9 @@ class Pipeline(nn.Module):
     remat_policy: Remat policy to use for the loop iterations
   """
 
-  config: common_types.Config
+  config: Config
   layers: nn.Module  # The name of this property (layers) is reflected in the state pytree and thus also checkpoints.
-  mesh: common_types.Mesh
+  mesh: Mesh
   remat_policy: Any = None
 
   def setup(self):
@@ -438,7 +438,7 @@ class Pipeline(nn.Module):
       segment_ids: jnp.ndarray,
       positions: jnp.ndarray,
       deterministic: bool,
-      model_mode=common_types.MODEL_MODE_TRAIN,
+      model_mode=MODEL_MODE_TRAIN,
   ) -> jnp.ndarray:
     """The main method that maps the series of decoder layer inputs to final layer outputs.
     Has the same signature of a single decoder layer, and expects the same shapes, e.g. the inputs should have shape [global_batch], and internally

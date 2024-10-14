@@ -28,25 +28,15 @@ from jax.ad_checkpoint import checkpoint_name
 
 from flax import linen as nn
 
-from layers import attentions
-from layers import initializers
-from layers import linears
-from layers import models
-from layers import quantizations
+from ..layers import attentions
+from ..layers import initializers
+from ..layers import linears
+from ..layers import models
+from ..layers import quantizations
 
 AttentionOp = attentions.AttentionOp
 
-import common_types
-
-Array = common_types.Array
-Config = common_types.Config
-DType = common_types.DType
-Mesh = common_types.Mesh
-AxisNames = common_types.AxisNames
-BATCH = common_types.BATCH
-LENGTH = common_types.LENGTH
-HEAD = common_types.HEAD
-D_KV = common_types.D_KV
+from ..common_types import *
 
 DenseGeneral = linears.DenseGeneral
 NdInitializer = initializers.NdInitializer

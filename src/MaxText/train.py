@@ -30,38 +30,40 @@ from typing import Sequence, Optional
 from absl import app
 from flax import linen as nn
 from flax.linen import partitioning as nn_partitioning
-import grain.python as grain
+from sys import platform
+if platform == "linux" or platform == "linux2":
+  import grain.python as grain
 import jax
 import numpy as np
 import orbax.checkpoint
 import orbax.checkpoint.experimental.emergency.checkpoint_manager as emergency_checkpoint_manager
 
-import checkpointing
-import max_utils
-import maxtext_utils
-import max_logging
-import optimizers
-import profiler
-import pyconfig
-import pathwaysutils  # pylint: disable=unused-import
+from .checkpointing import *
+from .max_utils import *
+from .maxtext_utils import *
+from .max_logging import *
+from .optimizers import *
+from .profiler import *
+from .pyconfig import *
+# import pathwaysutils  # pylint: disable=unused-import
 
-from vertex_tensorboard import VertexTensorboardManager
+# from vertex_tensorboard import VertexTensorboardManager
 # Placeholder: internal
 
-from input_pipeline.input_pipeline_interface import create_data_iterator
-from layers import models
+from .input_pipeline.input_pipeline_interface import create_data_iterator
+from .layers import models
 
 import jax.numpy as jnp
 from jax import random
 from jax.sharding import Mesh
 from jax.experimental import checkify
 
-from cloud_tpu_diagnostics import diagnostic
-from cloud_tpu_diagnostics.configuration import debug_configuration
-from cloud_tpu_diagnostics.configuration import diagnostic_configuration
-from cloud_tpu_diagnostics.configuration import stack_trace_configuration
+# from cloud_tpu_diagnostics import diagnostic
+# from cloud_tpu_diagnostics.configuration import debug_configuration
+# from cloud_tpu_diagnostics.configuration import diagnostic_configuration
+# from cloud_tpu_diagnostics.configuration import stack_trace_configuration
 
-from layers import quantizations
+from .layers import quantizations
 
 from ml_goodput_measurement import goodput
 from ml_goodput_measurement import monitoring
@@ -78,9 +80,9 @@ def validate_train_config(config):
 
   assert config.run_name, "Erroring out, need a real run_name"
   if not config.dataset_path.startswith("gs://"):
-    max_logging.log("WARNING: 'dataset_path' might be pointing your local file system")
+    log("WARNING: 'dataset_path' might be pointing your local file system")
   if not config.base_output_directory.startswith("gs://"):
-    max_logging.log("WARNING: 'base_output_directory' might be pointing your local file system")
+    log("WARNING: 'base_output_directory' might be pointing your local file system")
   assert config.steps > 0, "You must set steps or learning_rate_schedule_steps to a positive integer."
   if config.quantization == "fp8":
     # pylint: disable=line-too-long
@@ -142,10 +144,10 @@ def write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step
     write_metrics_to_tensorboard(writer, metrics_to_write, steps_to_write, config, is_training)
 
     if config.metrics_file:
-      max_utils.write_metrics_locally(metrics_to_write, steps_to_write, config, local_metrics_file, is_training)
+      write_metrics_locally(metrics_to_write, steps_to_write, config, local_metrics_file, is_training)
 
     if config.gcs_metrics and jax.process_index() == 0:
-      running_gcs_metrics = max_utils.write_metrics_for_gcs(
+      running_gcs_metrics = write_metrics_for_gcs(
           metrics_to_write, steps_to_write, config, running_gcs_metrics, is_training
       )
 
@@ -166,7 +168,7 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
     if is_training:
       full_log = step % config.log_period == 0
 
-      max_logging.log(
+      log(
           f"completed step: {step}, seconds: {metrics['scalar']['perf/step_time_seconds']:.3f}, "
           f"TFLOP/s/device: {metrics['scalar']['perf/per_device_tflops_per_sec']:.3f}, "
           f"Tokens/s/device: {metrics['scalar']['perf/per_device_tokens_per_sec']:.3f}, "
@@ -175,7 +177,7 @@ def write_metrics_to_tensorboard(writer, metrics, step, config, is_training=True
       )
 
       if full_log and jax.process_index() == 0:
-        max_logging.log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
+        log(f"To see full metrics 'tensorboard --logdir={config.tensorboard_dir}'")
         writer.flush()
 
 
@@ -192,7 +194,7 @@ def save_checkpoint(
     state,
     dataset_type="c4",
     data_iterator=None,
-    config: Optional[pyconfig.config] = None,
+    config: Optional[config] = None,
 ) -> bool:
   """Wrapper for saving checkpoint."""
   if config and config.enable_checkpointing:
@@ -200,11 +202,11 @@ def save_checkpoint(
         config.enable_emergency_checkpoint and step % config.local_checkpoint_period == 0
     ):
       blocking_until_ready_start = time.time()
-      max_logging.log(f"Waiting for step {step} to finish before checkpoint...")
+      log(f"Waiting for step {step} to finish before checkpoint...")
       # We block here on the step finishing so that our checkpointing metrics
       # measure only checkpointing time, not training time.
       jax.block_until_ready(state)
-      max_logging.log(
+      log(
           f"Waited {time.time() - blocking_until_ready_start} seconds for step "
           f"{step} to finish before starting checkpointing."
       )
@@ -300,7 +302,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
       mutable="intermediates",
   )
   one_hot_targets = jax.nn.one_hot(data["targets"], config.vocab_size)
-  xent, _ = max_utils.cross_entropy_with_logits(logits, one_hot_targets, 0.0)
+  xent, _ = cross_entropy_with_logits(logits, one_hot_targets, 0.0)
   xent = nn.with_logical_constraint(xent, ("activation_embed_and_logits_batch", "activation_length"))
   # Mask out paddings at the end of each example.
   xent = xent * (data["targets_segmentation"] != 0)
@@ -311,7 +313,7 @@ def loss_fn(model, config, data, dropout_rng, params, is_train=True):
   moe_lb_loss = 0.0
   if config.num_experts > 1:
     nested_key = ("intermediates", "decoder", "layers", "moe_lb_loss")
-    total_moe_lb_loss = maxtext_utils.get_nested_value(intermediate_outputs, nested_key, 0.0)
+    total_moe_lb_loss = get_nested_value(intermediate_outputs, nested_key, 0.0)
     moe_lb_loss = jnp.mean(jnp.array(total_moe_lb_loss))
     loss += moe_lb_loss
   aux = {
@@ -378,7 +380,7 @@ def train_step(model, config, state, data, dropout_rng):
   moe_lb_loss = aux["moe_lb_loss"]
 
   if config.gradient_clipping_threshold > 0:
-    grads = maxtext_utils.apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
+    grads = apply_gradient_clipping(raw_grads, state, config.gradient_clipping_threshold)
   else:
     grads = raw_grads
   new_state = state.apply_gradients(grads=grads)
@@ -387,9 +389,9 @@ def train_step(model, config, state, data, dropout_rng):
           "learning/loss": loss,
           "learning/moe_lb_loss": moe_lb_loss,
           "learning/total_weights": total_weights,
-          "learning/grad_norm": max_utils.l2norm_pytree(grads),
+          "learning/grad_norm": l2norm_pytree(grads),
           "learning/raw_grad_norm": max_utils.l2norm_pytree(raw_grads),
-          "learning/param_norm": max_utils.l2norm_pytree(new_state.params),
+          "learning/param_norm": l2norm_pytree(new_state.params),
       },
       "scalars": {},
   }
@@ -465,21 +467,21 @@ def setup_mesh_and_model(config):
   """
 
   init_rng = random.PRNGKey(config.init_weights_seed)
-  writer = max_utils.initialize_summary_writer(config)
+  writer = initialize_summary_writer(config)
 
   # Mesh definition
-  devices_array = max_utils.create_device_mesh(config)
+  devices_array = create_device_mesh(config)
   mesh = Mesh(devices_array, config.mesh_axes)
 
   # Model and Optimizer definition
   quant = quantizations.configure_quantization(config)
   model = Transformer(config, mesh, quant=quant)
-  learning_rate_schedule = max_utils.create_learning_rate_schedule(config)
-  tx = optimizers.get_optimizer(config, learning_rate_schedule)
-  logger = checkpointing.setup_checkpoint_logger(config)
+  learning_rate_schedule = create_learning_rate_schedule(config)
+  tx = get_optimizer(config, learning_rate_schedule)
+  logger = setup_checkpoint_logger(config)
   if config.enable_emergency_checkpoint:
-    abstract_state, _, _ = max_utils.get_abstract_state(model, tx, config, init_rng, mesh, is_training=True)
-    checkpoint_manager = checkpointing.create_orbax_emergency_checkpoint_manager(
+    abstract_state, _, _ = get_abstract_state(model, tx, config, init_rng, mesh, is_training=True)
+    checkpoint_manager = create_orbax_emergency_checkpoint_manager(
         config.local_checkpoint_directory,
         config.checkpoint_dir,
         mesh,
@@ -494,7 +496,7 @@ def setup_mesh_and_model(config):
     use_zarr3 = config.checkpoint_storage_use_zarr3
     if config.enable_single_controller:
       use_ocdbt, use_zarr3 = False, False
-    checkpoint_manager = checkpointing.create_orbax_checkpoint_manager(
+    checkpoint_manager = create_orbax_checkpoint_manager(
         config.checkpoint_dir,
         config.enable_checkpointing,
         config.async_checkpointing,
@@ -534,13 +536,13 @@ def setup_train_loop(config):
   record_goodput(recorder, config, recorder.record_training_preparation_start_time if recorder else None)
   data_iterator, eval_data_iterator = create_data_iterator(config, mesh)
 
-  state, state_mesh_annotations, data_iterator = max_utils.setup_training_state(
+  state, state_mesh_annotations, data_iterator = setup_training_state(
       model, data_iterator, tx, config, init_rng, mesh, checkpoint_manager
   )
 
   if not config.using_pipeline_parallelism:
     # The vocab tensor(s) of shape [vocab, embed] (and transpose) are not sharded by stage
-    maxtext_utils.assert_params_sufficiently_sharded(state.params, mesh, tolerance=0.02)
+    assert_params_sufficiently_sharded(state.params, mesh, tolerance=0.02)
   record_goodput(recorder, config, recorder.record_training_preparation_end_time if recorder else None)
   return (
       init_rng,
@@ -587,7 +589,7 @@ def train_loop(config, state=None):
       out_shard_train,
       static_argnums_train,
       donate_argnums_train,
-  ) = maxtext_utils.get_functional_train_with_signature(train_step, mesh, state_mesh_annotations, model, config)
+  ) = get_functional_train_with_signature(train_step, mesh, state_mesh_annotations, model, config)
 
   if eval_data_iterator:
     # pylint: disable=line-too-long
@@ -597,23 +599,23 @@ def train_loop(config, state=None):
         out_shard_eval,
         static_argnums_eval,
         donate_argnums_eval,
-    ) = maxtext_utils.get_functional_eval_with_signature(eval_step, mesh, state_mesh_annotations, model, config)
+    ) = get_functional_eval_with_signature(eval_step, mesh, state_mesh_annotations, model, config)
 
-  num_model_parameters = max_utils.calculate_num_params_from_pytree(state.params)
-  max_logging.log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
-  per_device_tflops, _, _ = maxtext_utils.calculate_tflops_training_per_device(config)
-  per_device_tokens = maxtext_utils.calculate_tokens_training_per_device(config)
+  num_model_parameters = calculate_num_params_from_pytree(state.params)
+  log(f"number parameters: {num_model_parameters/1e9:.3f} billion")
+  per_device_tflops, _, _ = calculate_tflops_training_per_device(config)
+  per_device_tokens = calculate_tokens_training_per_device(config)
 
   # Write train config params, num model params, and XLA flags to tensorboard
-  max_utils.add_text_to_summary_writer("num_model_parameters", str(num_model_parameters), writer)
-  max_utils.add_text_to_summary_writer("libtpu_init_args", os.environ["LIBTPU_INIT_ARGS"], writer)
-  max_utils.add_config_to_summary_writer(config, writer)
+  add_text_to_summary_writer("num_model_parameters", str(num_model_parameters), writer)
+  add_text_to_summary_writer("libtpu_init_args", os.environ["LIBTPU_INIT_ARGS"], writer)
+  add_config_to_summary_writer(config, writer)
 
   # Define the compilation of functional_train, either by loading the compiled version or wrapping a new one in a jit
   if config.compiled_trainstep_file != "":
     print("Loading the compiled function...", flush=True)
     # Need to pass train signature and state to determine i/o shapes of train_state for now.
-    p_train_step = maxtext_utils.load_compiled(config, functional_train, state)
+    p_train_step = load_compiled(config, functional_train, state)
     # TODO: p_eval_step is not yet supported in load_compiled
     p_eval_step = None
     print("Loaded compiled function!", flush=True)
@@ -648,13 +650,13 @@ def train_loop(config, state=None):
 
   example_batch = None
   last_step_completion = datetime.datetime.now()
-  prof = profiler.Profiler(config)
+  prof = Profiler(config)
   for step in np.arange(start_step, config.steps):
     if step == first_profiling_step:
       jax.block_until_ready(state)  # Block until previous state finishes to start profile cleanly
       prof.activate()
 
-    with jax.profiler.StepTraceAnnotation("train", step_num=step):
+    with jax.StepTraceAnnotation("train", step_num=step):
       record_goodput(recorder, config, recorder.record_data_loading_start_time if recorder else None)
       example_batch = load_next_batch(data_iterator, example_batch, config)
       record_goodput(recorder, config, recorder.record_data_loading_end_time if recorder else None)
@@ -673,7 +675,7 @@ def train_loop(config, state=None):
 
     if checkpoint_manager is not None:
       if save_checkpoint(checkpoint_manager, int(step), state, config.dataset_type, data_iterator, config):
-        max_logging.log(f"saved a checkpoint at step {step}")
+        log(f"saved a checkpoint at step {step}")
 
       # Upon preemption, exit when and only when all ongoing saves are complete.
       if checkpoint_manager.reached_preemption(step):
@@ -702,7 +704,7 @@ def train_loop(config, state=None):
         cumulative_eval_metrics["scalar"]["eval/total_loss"] += float(eval_metrics["scalar"]["evaluation/total_loss"])
         cumulative_eval_metrics["scalar"]["eval/total_weights"] += float(eval_metrics["scalar"]["evaluation/total_weights"])
         cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] += float(eval_metrics["scalar"]["evaluation/moe_lb_loss"])
-        max_logging.log(f"Completed eval step {eval_step_count}")
+        log(f"Completed eval step {eval_step_count}")
         eval_step_count += 1
       eval_loss = (
           cumulative_eval_metrics["scalar"]["eval/total_loss"]
@@ -713,11 +715,11 @@ def train_loop(config, state=None):
       write_metrics(
           writer, local_metrics_file, running_gcs_metrics, cumulative_eval_metrics, step, config, is_training=False
       )
-      max_logging.log(
+      log(
           f"average loss after {step=}: {eval_step_count=}, {eval_loss=}, total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']}"
       )
       if eval_loss <= config.target_eval_loss:
-        max_logging.log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")
+        log(f"Early stop and exit loop after reaching {config.target_eval_loss=}")
         prof.deactivate()
         break
 
@@ -728,7 +730,7 @@ def train_loop(config, state=None):
   if checkpoint_manager is not None:
     checkpoint_manager.wait_until_finished()
   write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, config.steps - 1, config)  # final step metrics
-  max_utils.close_summary_writer(writer)
+  close_summary_writer(writer)
   record_goodput(recorder, config, recorder.record_job_end_time if recorder else None)
   clear_buffered_metrics()
   return state
@@ -739,9 +741,9 @@ def main(argv: Sequence[str]) -> None:
   os.environ["TF_CPP_MIN_LOG_LEVEL"] = "0"
   if "xla_tpu_spmd_rng_bit_generator_unsafe" not in os.environ.get("LIBTPU_INIT_ARGS", ""):
     os.environ["LIBTPU_INIT_ARGS"] = os.environ.get("LIBTPU_INIT_ARGS", "") + " --xla_tpu_spmd_rng_bit_generator_unsafe=true"
-  pyconfig.initialize(argv)
-  max_utils.print_system_information()
-  config = pyconfig.config
+  initialize(argv)
+  print_system_information()
+  config = config
   validate_train_config(config)
   os.environ["TFDS_DATA_DIR"] = config.dataset_path
   vertex_tensorboard_manager = VertexTensorboardManager()
@@ -759,7 +761,7 @@ def main(argv: Sequence[str]) -> None:
         include_badput_breakdown=True,
     )
     goodput_monitor.start_goodput_uploader()
-    max_logging.log("Started Goodput upload to Tensorboard in the background!")
+    log("Started Goodput upload to Tensorboard in the background!")
   debug_config = debug_configuration.DebugConfig(
       stack_trace_config=stack_trace_configuration.StackTraceConfig(
           collect_stack_trace=config.collect_stack_trace,

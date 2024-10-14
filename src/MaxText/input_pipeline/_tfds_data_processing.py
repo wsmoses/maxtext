@@ -24,10 +24,10 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import jax
 
-import multihost_dataloading
-import tokenizer
-import sequence_packing
-from input_pipeline import _input_pipeline_utils
+from ..multihost_dataloading import *
+from ..tokenizer import *
+from ..sequence_packing import *
+from . import _input_pipeline_utils
 
 AUTOTUNE = tf.data.experimental.AUTOTUNE
 
@@ -90,7 +90,7 @@ def preprocessing_pipeline(
 
   if tokenize:
     tokenizer_model = _input_pipeline_utils.get_tokenizer(tokenizer_path, add_bos, add_eos)
-    dataset = dataset.map(lambda x: tokenizer.TokenizeOp(tokenizer=tokenizer_model, features=x), num_parallel_calls=AUTOTUNE)
+    dataset = dataset.map(lambda x: TokenizeOp(tokenizer=tokenizer_model, features=x), num_parallel_calls=AUTOTUNE)
 
   if max_target_length > 0:
     # We can take upto max_length+1 because there would be truncation by 1 token
@@ -115,7 +115,7 @@ def preprocessing_pipeline(
   # Perform greedy sequence packing and batching
   assert global_batch_size % global_mesh.size == 0, "Batch size should be divisible number of global devices."
   if pack_examples:
-    dataset = sequence_packing.pack_dataset(dataset, max_target_length)
+    dataset = pack_dataset(dataset, max_target_length)
     dataset = dataset.batch(global_batch_size // jax.process_count(), drop_remainder=drop_remainder)
   else:
     # simple (static-shape) padded batching
@@ -129,7 +129,7 @@ def preprocessing_pipeline(
   if prefetch_size:
     dataset = dataset.prefetch(prefetch_size)
 
-  multihost_gen = multihost_dataloading.MultiHostDataLoadIterator(dataset, global_mesh)
+  multihost_gen = MultiHostDataLoadIterator(dataset, global_mesh)
 
   # Return multi-host jax.Array prep iterator
   return multihost_gen

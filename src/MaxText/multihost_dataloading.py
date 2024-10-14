@@ -32,9 +32,12 @@ import jax.tree_util as jtu
 from jax.sharding import PartitionSpec
 from jax.sharding import NamedSharding
 from jax.sharding import Mesh
-import grain.python as grain
 
-import max_logging
+from sys import platform
+if platform == "linux" or platform == "linux2":
+  import grain.python as grain
+
+from .max_logging import *
 
 
 def _build_global_shape_and_sharding(
@@ -78,7 +81,7 @@ def get_next_batch_sharded(local_iterator: Iterator, global_mesh: Mesh) -> jax.A
       local_data = next(local_iterator)
       loaded_data_success = True
     except tf.errors.FailedPreconditionError:
-      max_logging.log("Failed to get next data batch, retrying")
+      log("Failed to get next data batch, retrying")
       time.sleep(SLEEP_TIME)
 
   # Try one last time, if this fails we will see the full stack trace.
@@ -93,7 +96,7 @@ def get_next_batch_sharded(local_iterator: Iterator, global_mesh: Mesh) -> jax.A
 class MultiHostDataLoadIterator:
   """fold get_next_batch_sharded into a iterator class"""
 
-  def __init__(self, dataloader: Union[tf.data.Dataset, grain.DataLoader], global_mesh: Mesh):
+  def __init__(self, dataloader, global_mesh: Mesh):
     self.global_mesh = global_mesh
     self.dataloader = dataloader
     if isinstance(self.dataloader, tf.data.Dataset):

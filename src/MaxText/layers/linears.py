@@ -22,25 +22,21 @@ import flax.linen as nn
 import jax
 from jax import lax
 import jax.numpy as jnp
-import common_types
-from layers import initializers
-from layers import normalizations
-from layers import quantizations
+from ..common_types import *
+from ..layers import initializers
+from ..layers import normalizations
+from ..layers import quantizations
 import numpy as np
 from jax.ad_checkpoint import checkpoint_name
 from jax.experimental import shard_map
-import max_logging
+from ..max_logging import *
 
 try:
   from jax.experimental.pallas.ops.tpu import megablox as mblx
 except ImportError:
-  max_logging.log("JAX megablox is available for TPU only.")
+  log("JAX megablox is available for TPU only.")
   pass
 
-Array = common_types.Array
-Config = common_types.Config
-DType = common_types.DType
-Mesh = common_types.Mesh
 NdInitializer = initializers.NdInitializer
 
 nd_dense_init = initializers.nd_dense_init
@@ -437,7 +433,7 @@ class MoeBlock(nn.Module):
     batch_size, seq_len, _ = top_k_indices.shape
     tokens_per_batch = seq_len * self.num_experts_per_tok
     expert_capacity_per_batch = int((tokens_per_batch / self.num_experts) * self.config.capacity_factor)
-    max_logging.log(f"Applying potential token dropping with a batch expert_capacity of {expert_capacity_per_batch}")
+    log(f"Applying potential token dropping with a batch expert_capacity of {expert_capacity_per_batch}")
 
     # calculate expert mask and drop tokens if needed
     # shape of output expert mask: (batch, sequence, num_experts_per_tok)
@@ -620,8 +616,8 @@ class MoeBlock(nn.Module):
     w0_kernel, w1_kernel, wo_kernel = self.generate_kernels(cfg.num_experts, cfg.emb_dim, cfg.mlp_dim)
 
     if cfg.megablox:
-      max_logging.log("Running MoE megablox implementation.")
+      log("Running MoE megablox implementation.")
       return self.megablox(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)
     else:
-      max_logging.log("Running MoE matmul implementation.")
+      log("Running MoE matmul implementation.")
       return self.dense_matmul(inputs, gate_logits, w0_kernel, w1_kernel, wo_kernel)

@@ -27,13 +27,13 @@ from jax.experimental import shard_map
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_kernel
 from jax.experimental.pallas.ops.tpu.splash_attention import splash_attention_mask
 import jax.numpy as jnp
-import common_types
-from kernels.ragged_attention import ragged_gqa
-from kernels.ragged_attention import ragged_mha
-from layers import embeddings
-from layers import initializers
-from layers import linears
-from layers import quantizations
+from ..common_types import *
+from ..kernels.ragged_attention import ragged_gqa
+from ..kernels.ragged_attention import ragged_mha
+from ..layers import embeddings
+from ..layers import initializers
+from ..layers import linears
+from ..layers import quantizations
 
 
 # pylint: disable=line-too-long, g-doc-args, g-doc-return-or-yield, bad-continuation, g-inconsistent-quotes
@@ -45,37 +45,12 @@ class AttentionType(enum.Enum):
   LOCAL_SLIDING = "local_sliding"
 
 
-Array = common_types.Array
-Config = common_types.Config
-DType = common_types.DType
-Mesh = common_types.Mesh
-PRNGKey = common_types.PRNGKey
-
 DenseGeneral = linears.DenseGeneral
 RotaryEmbedding = embeddings.RotaryEmbedding
 NdInitializer = initializers.NdInitializer
 Quant = quantizations.AqtQuantization
 KVQuant = quantizations.KVQuant
 KVTensor = quantizations.KVTensor
-
-AxisNames = common_types.AxisNames
-AxisIdxes = common_types.AxisIdxes
-BATCH = common_types.BATCH
-KV_BATCH = common_types.KV_BATCH
-LENGTH = common_types.LENGTH
-HEAD = common_types.HEAD
-KV_HEAD = common_types.KV_HEAD
-D_KV = common_types.D_KV
-KV_HEAD_DIM = common_types.KV_HEAD_DIM
-CACHE_BATCH = common_types.CACHE_BATCH
-CACHE_SEQUENCE = common_types.CACHE_SEQUENCE
-CACHE_HEADS = common_types.CACHE_HEADS
-CACHE_KV = common_types.CACHE_KV
-CACHE_SCALE_BATCH = common_types.CACHE_SCALE_BATCH
-CACHE_SCALE_SEQUENCE = common_types.CACHE_SCALE_SEQUENCE
-CACHE_SCALE_HEADS = common_types.CACHE_SCALE_HEADS
-CACHE_SCALE_KV = common_types.CACHE_SCALE_KV
-DEFAULT_MASK_VALUE = common_types.DEFAULT_MASK_VALUE
 
 # Used to pass in splash attention block sizes from config.
 global_block_q = 0
@@ -162,15 +137,15 @@ class AttentionOp(nn.Module):
   # This mask models (1) separate sequences (decoder_segment_ids) and (2) causality
   def generate_attention_mask(self, query, key, decoder_segment_ids: Array | None, model_mode: str) -> Array | None:
     mask = None
-    if model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE:
-      mask = decoder_segment_ids[:, None, None, None, :] == common_types.DECODING_ACTIVE_SEQUENCE_INDICATOR
+    if model_mode == MODEL_MODE_AUTOREGRESSIVE:
+      mask = decoder_segment_ids[:, None, None, None, :] == DECODING_ACTIVE_SEQUENCE_INDICATOR
     elif decoder_segment_ids is not None:
       mask = decoder_segment_ids[:, :, None] == decoder_segment_ids[:, None, :]
       mask = mask[:, None, None, :, :]
 
     causal_mask = None
     # We enforce causality except for AUTOREGRESSION
-    if model_mode != common_types.MODEL_MODE_AUTOREGRESSIVE:
+    if model_mode != MODEL_MODE_AUTOREGRESSIVE:
       _, q_seq_len, _, _ = query.shape
       _, kv_seq_len, _, _ = key.shape
       mask_shape = (q_seq_len, kv_seq_len)
@@ -209,14 +184,14 @@ class AttentionOp(nn.Module):
   ):
     self.check_attention_inputs(query, key, value)
     length = query.shape[-3]
-    if use_ragged_attention and model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE:
+    if use_ragged_attention and model_mode == MODEL_MODE_AUTOREGRESSIVE:
       if lengths is None:
         lengths = jnp.sum(decoder_segment_ids, axis=-1)
 
       return self.ragged_attention(query, key, value, lengths, self.ragged_block_size)
     elif (
         self.attention_kernel == "dot_product"
-        or (self.attention_kernel == "autoselected" and model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE)
+        or (self.attention_kernel == "autoselected" and model_mode == MODEL_MODE_AUTOREGRESSIVE)
         or (self.attention_kernel == "autoselected" and length < 128)
     ):
       return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
@@ -226,7 +201,7 @@ class AttentionOp(nn.Module):
       if isinstance(value, KVTensor):
         value = value.dequant()
 
-      if model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE:
+      if model_mode == MODEL_MODE_AUTOREGRESSIVE:
         raise ValueError(
             """Decode not supported with flash attention.
                             Use `dot_product` instead."""
@@ -237,7 +212,7 @@ class AttentionOp(nn.Module):
         key = key.dequant()
       if isinstance(value, KVTensor):
         value = value.dequant()
-      if model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE:
+      if model_mode == MODEL_MODE_AUTOREGRESSIVE:
         raise ValueError(
             """Decode not supported with flash attention.
                            Use `dot_product` instead."""
@@ -365,7 +340,7 @@ class AttentionOp(nn.Module):
       key: Array,
       value: Array,
       decoder_segment_ids: Array | None,
-      model_mode: str = common_types.MODEL_MODE_TRAIN,
+      model_mode: str = MODEL_MODE_TRAIN,
   ) -> Array:
     """CUDNN Flash Attention with Transformer Engine.
     1. Stable API, supports GQA
@@ -438,12 +413,12 @@ class AttentionOp(nn.Module):
       key: Array | KVTensor,
       value: Array | KVTensor,
       decoder_segment_ids: Array | None,
-      model_mode: str = common_types.MODEL_MODE_TRAIN,
+      model_mode: str = MODEL_MODE_TRAIN,
   ):
     """Apply Attention."""
     validate_compute_axis_order(self.compute_axis_order)
     # Casting qk_product and softmaxt computation for float32 for model stability.
-    if model_mode == common_types.MODEL_MODE_TRAIN and self.float32_qk_product:
+    if model_mode == MODEL_MODE_TRAIN and self.float32_qk_product:
       if isinstance(key, KVTensor):
         key = key.dequant()
       query = query.astype(jnp.float32)
@@ -457,7 +432,7 @@ class AttentionOp(nn.Module):
       attn_weights = attn_weights * self.attn_logits_soft_cap
 
     # Casting softmaxt computation for float32 for model stability.
-    if model_mode == common_types.MODEL_MODE_TRAIN and self.float32_logits:
+    if model_mode == MODEL_MODE_TRAIN and self.float32_logits:
       attn_weights = attn_weights.astype(jnp.float32)
     attn_mask = self.generate_attention_mask(query, key, decoder_segment_ids, model_mode)
     if attn_mask is not None:
@@ -489,7 +464,7 @@ class AttentionOp(nn.Module):
     b, t, n, d = query.shape
     n_kv = key.shape[-2]
     assert n_kv == self.num_kv_heads
-    if model_mode == common_types.MODEL_MODE_TRAIN or self.compute_axis_order == (0, 1, 2, 3):
+    if model_mode == MODEL_MODE_TRAIN or self.compute_axis_order == (0, 1, 2, 3):
       query = jnp.reshape(query, (b, t, n_kv, n // n_kv, d))
       if self.reshape_q and q_seq_len == 1:
         query = jnp.broadcast_to(query, (b, 2, n_kv, n // n_kv, d))
@@ -526,7 +501,7 @@ class AttentionOp(nn.Module):
     einsum = jnp.einsum
     if self.kv_quant:
       einsum = self.kv_quant.einsum_fn_with_rhs_qtensor_and_dequant(value)
-    if model_mode == common_types.MODEL_MODE_TRAIN or self.compute_axis_order == (0, 1, 2, 3):
+    if model_mode == MODEL_MODE_TRAIN or self.compute_axis_order == (0, 1, 2, 3):
       out = einsum("bkgts,bskd->btkgd", attn_weights, value)
       b, t, n_kv, g, d = out.shape
       result = jnp.reshape(out, (b, t, n_kv * g, d))
@@ -885,7 +860,7 @@ class AttentionOp(nn.Module):
         cache_ar_lengths_var.value,
         use_ragged_attention,
     )
-    active_indicator = jnp.zeros((batch, 1), dtype=jnp.int32) + common_types.DECODING_ACTIVE_SEQUENCE_INDICATOR
+    active_indicator = jnp.zeros((batch, 1), dtype=jnp.int32) + DECODING_ACTIVE_SEQUENCE_INDICATOR
     cached_ar_segment_id_var.value = jax.lax.dynamic_update_index_in_dim(
         cached_ar_segment_id_var.value, active_indicator, jnp.squeeze(cache_ar_index_var.value), 1
     )
@@ -936,11 +911,11 @@ class AttentionOp(nn.Module):
     if key.shape != value.shape:
       raise ValueError(f"Can't KV cache with mismatched shapes {key.shape=}, {value.shape=}")
 
-    if model_mode == common_types.MODEL_MODE_TRAIN:
+    if model_mode == MODEL_MODE_TRAIN:
       return (key, value, decoder_segment_ids), None
-    elif model_mode == common_types.MODEL_MODE_PREFILL:
+    elif model_mode == MODEL_MODE_PREFILL:
       return self.kv_cache_prefill(key, value, decoder_segment_ids), None
-    elif model_mode == common_types.MODEL_MODE_AUTOREGRESSIVE:
+    elif model_mode == MODEL_MODE_AUTOREGRESSIVE:
       return self.kv_cache_autoregressive(key, value, use_ragged_attention)
     else:
       raise ValueError(f"Model Mode isn't supported! {model_mode=}")
@@ -1176,7 +1151,7 @@ class Attention(nn.Module):
       inputs_positions: Array,
       decoder_segment_ids: Array | None = None,
       *,
-      model_mode: str = common_types.MODEL_MODE_TRAIN,
+      model_mode: str = MODEL_MODE_TRAIN,
       deterministic: bool = False,
   ):
     """Applies Attention on the input data.

@@ -15,15 +15,15 @@ limitations under the License.
 """
 
 """ Common Max Utils needed by multiple modules"""
-import checkpointing
-import common_types
+from .checkpointing import *
+from .common_types import *
 import functools
 import time
 import socket
 import subprocess
 from etils import epath
 
-import max_logging
+from .max_logging import *
 
 import numpy as np
 import jax
@@ -152,9 +152,9 @@ def write_metrics_for_gcs(metrics, step, config, running_metrics, is_training=Tr
 
     metrics_for_gcs.close()
     gcs_filename = os.path.join(config.metrics_dir, metrics_filename)
-    max_logging.log(f"Moving file {metrics_filename} to GCS...")
+    log(f"Moving file {metrics_filename} to GCS...")
     upload_blob(gcs_filename, metrics_filename)
-    max_logging.log(f"File {metrics_filename} moved successfully!")
+    log(f"File {metrics_filename} moved successfully!")
     running_metrics = []  # reset running_metrics to empty list
   return running_metrics
 
@@ -163,7 +163,7 @@ def write_config_raw_keys_for_gcs(raw_keys):
   """Writes config raw keys to GCS"""
   if not raw_keys["save_config_to_gcs"] or jax.process_index() != 0:
     return
-  max_logging.log("Writing config to GCS...")
+  log("Writing config to GCS...")
 
   raw_keys_dict = dict(raw_keys)
   filename = "config.yml"
@@ -172,9 +172,9 @@ def write_config_raw_keys_for_gcs(raw_keys):
   config_for_gcs.close()
 
   gcs_filename = os.path.join(raw_keys["base_output_directory"], raw_keys["run_name"], filename)
-  max_logging.log(f"Moving file {filename} to GCS...")
+  log(f"Moving file {filename} to GCS...")
   upload_blob(gcs_filename, filename)
-  max_logging.log(f"File {filename} moved successfully!")
+  log(f"File {filename} moved successfully!")
 
 
 def parse_gcs_bucket_and_prefix(destination_gcs_name):
@@ -205,25 +205,25 @@ def maybe_initialize_jax_distributed_system(raw_keys):
     # Don't initialize jax distributed with AOT compilation
     return
   if is_gpu_backend(raw_keys):
-    max_logging.log("Attempting to initialize the jax distributed system for GPU backend...")
+    log("Attempting to initialize the jax distributed system for GPU backend...")
     initialize_jax_for_gpu()
-    max_logging.log("Jax distributed system initialized on GPU!")
+    log("Jax distributed system initialized on GPU!")
   elif is_cpu_backend(raw_keys):
-    max_logging.log("Attempting to initialize the jax distributed system for CPU backend...")
+    log("Attempting to initialize the jax distributed system for CPU backend...")
     initialize_jax_for_cpu()
-    max_logging.log("Jax distributed system initialized on CPUs!")
+    log("Jax distributed system initialized on CPUs!")
   elif (
       raw_keys["enable_checkpointing"]
       and raw_keys["async_checkpointing"]
       and raw_keys["compile_topology_num_slices"] == -1
       and not raw_keys["enable_single_controller"]
   ) or raw_keys["hardware"] == "gpu_multiprocess":
-    max_logging.log("Attempting to initialize the jax distributed system...")
+    log("Attempting to initialize the jax distributed system...")
     if not raw_keys["enable_emergency_checkpoint"]:
       jax.distributed.initialize()
     else:
       initialize_jax_for_tpu_with_emergency_checkpointing(raw_keys)
-    max_logging.log("Jax distributed system initialized!")
+    log("Jax distributed system initialized!")
 
 
 def initialize_jax_for_gpu():
@@ -236,7 +236,7 @@ def initialize_jax_for_gpu():
         num_processes=int(os.getenv("NNODES")),
         process_id=int(os.getenv("NODE_RANK")),
     )
-    max_logging.log(f"JAX global devices: {jax.devices()}")
+    log(f"JAX global devices: {jax.devices()}")
 
 
 def initialize_jax_for_cpu():
@@ -248,7 +248,7 @@ def initialize_jax_for_cpu():
   job_completion_index = int(os.environ.get("JOB_COMPLETION_INDEX"))
   processes_in_job = int(os.environ.get("PROCESSES_IN_JOB"))
   pid = job_index * processes_in_job + job_completion_index
-  max_logging.log(f" Jax process id is {pid} ")
+  log(f" Jax process id is {pid} ")
   # Explicit initialize is needed only for CPUs
   jax.distributed.initialize(
       coordinator_address=coordinator_address,
@@ -266,13 +266,13 @@ def initialize_jax_for_tpu_with_emergency_checkpointing(raw_keys):
   process_id, coordinator_address = _retrieve_jax_init_info(raw_keys)
 
   if process_id != "" and coordinator_address != "":
-    max_logging.log(
+    log(
         f"Using {process_id} as the process_id and {coordinator_address} as the"
         " coordinator_address to initialize JAX distributed runtime..."
     )
     jax.distributed.initialize(coordinator_address=coordinator_address, process_id=int(process_id))
   else:
-    max_logging.log(
+    log(
         "Initializing JAX distributed runtime without args when emergency checkpointing is"
         " enabled. This should not happen and your workload may have unexpected behavior."
     )
@@ -293,9 +293,9 @@ def _retrieve_jax_init_info(raw_keys):
   for i in range(900):
     if local_jax_init_info_file.exists():
       return local_jax_init_info_file.read_text().split("\n")[:2]
-    max_logging.log(f"Unable to locate {JAX_INIT_INFO_FILE} after {i} seconds, sleeping for 1 second before retrying...")
+    log(f"Unable to locate {JAX_INIT_INFO_FILE} after {i} seconds, sleeping for 1 second before retrying...")
     time.sleep(1)
-  max_logging.log(
+  log(
       f"Unable to locate {JAX_INIT_INFO_FILE} after 900 seconds," "returning empty process id and coordinator address."
   )
   return "", ""
@@ -325,12 +325,12 @@ def get_coordinator_ip_address():
         coordinator_ip_address = socket.gethostbyname(coordinator_address)
         coordinator_found = True
       except socket.gaierror:
-        max_logging.log(
+        log(
             f"Failed to recognize coordinator address {coordinator_address} on attempt {lookup_attempt}, retrying..."
         )
         lookup_attempt += 1
         time.sleep(5)
-  max_logging.log(f"Coordinator IP address: {coordinator_ip_address}")
+  log(f"Coordinator IP address: {coordinator_ip_address}")
   return coordinator_ip_address
 
 
@@ -417,7 +417,7 @@ def create_device_mesh(config, devices=None):
           devices,
       )
 
-  max_logging.log(f"Num_devices: {num_devices}, shape {mesh.shape}")
+  log(f"Num_devices: {num_devices}, shape {mesh.shape}")
 
   return mesh
 
@@ -484,14 +484,14 @@ def setup_decode_state(model, config, rng, mesh, checkpoint_manager):
   """
   if not config.load_parameters_path:
     # generate random params
-    max_logging.log("No decode checkpoint specified - generating random weights.")
+    log("No decode checkpoint specified - generating random weights.")
     state, state_mesh_annotations, _ = setup_initial_state(model, None, None, config, rng, mesh, checkpoint_manager, False)
   else:
     # Load params from checkpoint
-    max_logging.log(f"Loading decode params from {config.load_parameters_path}")
+    log(f"Loading decode params from {config.load_parameters_path}")
     unboxed_abstract_state, state_mesh_annotations, _ = get_abstract_state(model, None, config, rng, mesh, False)
     with nn_partitioning.axis_rules(config.logical_axis_rules):
-      params = checkpointing.load_params_from_path(config.load_parameters_path, unboxed_abstract_state.params)
+      params = load_params_from_path(config.load_parameters_path, unboxed_abstract_state.params)
     state = init_decode_state(None, params)
 
   state = unbox_logicallypartioned(state)
@@ -545,7 +545,7 @@ def setup_initial_state(
 
   # Initialization
   with nn_partitioning.axis_rules(config.logical_axis_rules):
-    restored, raw_params = checkpointing.load_state_if_possible(
+    restored, raw_params = load_state_if_possible(
         checkpoint_manager,
         data_iterator,
         config.load_parameters_path,
@@ -756,7 +756,7 @@ def get_kv_cache_annotations(model, config, rng, mesh):
         {"params": rng, "dropout": rng, "aqt": rng},
         jnp.ones(input_shape),
         jnp.ones(input_shape),
-        model_mode=common_types.MODEL_MODE_PREFILL,
+        model_mode=MODEL_MODE_PREFILL,
     )
     return model_vars["cache"]
 
@@ -786,7 +786,7 @@ def get_project():
   completed_command = subprocess.run(["gcloud", "config", "get", "project"], check=True, capture_output=True)
   project_outputs = completed_command.stdout.decode().strip().split("\n")
   if len(project_outputs) < 1 or project_outputs[-1] == "":
-    max_logging.log("You must specify config.vertex_tensorboard_project or set 'gcloud config set project <project>'")
+    log("You must specify config.vertex_tensorboard_project or set 'gcloud config set project <project>'")
     return None
   return project_outputs[-1]
 
@@ -825,7 +825,7 @@ def summarize_pytree_data(params, name="Params", raw=False):
 def save_quantized_checkpoint_if_configured(config, params):
   assert config.quantization, "quantization must be configured"
   if config.save_quantized_params_path:
-    checkpointing.save_params_to_path(config.save_quantized_params_path, params)
+    save_params_to_path(config.save_quantized_params_path, params)
   else:
     "Skipping saving quantized checkpoint as save_quantized_params_path is null."
 
@@ -845,6 +845,6 @@ def print_mem_stats(label: str):
 def print_system_information():
   """Print system information of the current environment.
   Note that this will initialize the JAX backend."""
-  max_logging.log(f"System Information: Jax Version: {jax.__version__}")
-  max_logging.log(f"System Information: Jaxlib Version: {jax.lib.__version__}")
-  max_logging.log(f"System Information: Jax Backend: {jax.lib.xla_bridge.get_backend().platform_version}")
+  log(f"System Information: Jax Version: {jax.__version__}")
+  log(f"System Information: Jaxlib Version: {jax.lib.__version__}")
+  log(f"System Information: Jax Backend: {jax.lib.xla_bridge.get_backend().platform_version}")

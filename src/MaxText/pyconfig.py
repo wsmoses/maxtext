@@ -25,9 +25,9 @@ from typing import Any, Union
 import jax
 from jax.experimental.compilation_cache import compilation_cache
 from .layers.attentions import AttentionType
-import accelerator_to_spec_map
-import max_logging
-import max_utils
+from .accelerator_to_spec_map import *
+from .max_logging import log
+from .max_utils import *
 import yaml
 
 # pylint: disable=line-too-long
@@ -106,7 +106,7 @@ def validate_keys(keys):
         keys["local_checkpoint_period"] > 0
     ), "A positive local checkpoint period must be specified when using emergency checkpoint"
   else:
-    max_logging.log("Not using emergency checkpoint, ignoring local_checkpoint_directory and local_checkpoint_period")
+    log("Not using emergency checkpoint, ignoring local_checkpoint_directory and local_checkpoint_period")
   if keys["num_experts"] > 1:
     validate_megablox_parallelism(keys)
 
@@ -114,7 +114,7 @@ def validate_keys(keys):
 def validate_data_input(keys):
   """validate provided parameters for data input"""
   if keys["dataset_type"] == "hf":
-    max_logging.log(
+    log(
         f"dataset_type set to hf, will use {keys['hf_path']=}, {keys['hf_data_dir']=} and {keys['hf_train_files']=} to read data"
     )
     assert keys["hf_path"] != "", "hf_path can't be empty when dataset_type=hf"
@@ -128,14 +128,14 @@ def validate_data_input(keys):
       assert keys["hf_eval_split"], "Please specify hf_eval_split or set eval_interval to <=0."
 
   elif keys["dataset_type"] == "grain":
-    max_logging.log(
+    log(
         f"dataset_type set to grain, will use {keys['grain_train_files']=} as data files, and {keys['grain_worker_count']} workers"
     )
     assert keys["grain_train_files"] != "", "grain_train_files can't be empty when dataset_type=grain"
     if keys["eval_interval"] > 0:
       assert keys["grain_eval_files"], "Please specify grain_eval_files or set eval_interval to <=0."
   elif keys["dataset_type"] == "tfds":
-    max_logging.log(f"dataset_type set to tfds, will use {keys['dataset_path']=} and {keys['dataset_name']=}")
+    log(f"dataset_type set to tfds, will use {keys['dataset_path']=} and {keys['dataset_name']=}")
     assert keys["dataset_name"] != "", "dataset_name can't be empty when dataset_type=tfds"
     if keys["eval_interval"] > 0:
       assert keys["eval_split"], "Please specify eval_split or set eval_interval to <=0."
@@ -275,13 +275,13 @@ class _HyperParameters:
 
     raw_keys = OrderedDict()
     keys_from_env_and_command_line = self._update_from_env_and_command_line(raw_keys, raw_data_from_yaml, argv, **kwargs)
-    max_logging.log(f"Updating keys from env and command line: {keys_from_env_and_command_line}")
+    log(f"Updating keys from env and command line: {keys_from_env_and_command_line}")
     keys_from_model = _HyperParameters.update_model_vars(argv[1], raw_keys, config_name)
-    max_logging.log(f"Updating keys from model: {keys_from_model}")
+    log(f"Updating keys from model: {keys_from_model}")
     validate_no_keys_overwritten_twice(keys_from_env_and_command_line, keys_from_model)
 
     # We initialize the jax distributed system here because it must be done before device backend is initialized.
-    max_utils.maybe_initialize_jax_distributed_system(raw_keys)
+    maybe_initialize_jax_distributed_system(raw_keys)
 
     if raw_keys["jax_cache_dir"]:
       compilation_cache.set_cache_dir(os.path.expanduser(raw_keys["jax_cache_dir"]))
@@ -304,7 +304,7 @@ class _HyperParameters:
     keys = [k for k in raw_keys]  # pylint: disable=unnecessary-comprehension
     keys.sort()
     for k in keys:
-      max_logging.log(f"Config param {k}: {raw_keys[k]}")
+      log(f"Config param {k}: {raw_keys[k]}")
 
   @staticmethod
   def user_init(raw_keys):
@@ -377,7 +377,7 @@ class _HyperParameters:
       raw_keys["using_pipeline_parallelism"] = False
 
     # Write raw_keys to GCS before type conversions
-    max_utils.write_config_raw_keys_for_gcs(raw_keys)
+    write_config_raw_keys_for_gcs(raw_keys)
 
     # Type conversions
     raw_keys["dtype"] = jax.numpy.dtype(raw_keys["dtype"])
@@ -409,7 +409,7 @@ class _HyperParameters:
   def update_model_vars(base_config_path, raw_keys, config_name: str):
     """Update model config variables"""
     validate_model_name(raw_keys["model_name"])
-    max_logging.log(f"Running Model: {raw_keys['model_name']}")
+    log(f"Running Model: {raw_keys['model_name']}")
 
     updated_keys = []
     if raw_keys["model_name"] != "default":
@@ -469,10 +469,10 @@ def update_model_keys(raw_keys, model_keys, key):
 
 def validate_and_update_keys(raw_keys, model_keys, config_name: str):
   """Validate and update model specific config keys"""
-  max_logging.log("Updating following parameters in config\n")
+  log("Updating following parameters in config\n")
 
   for k in model_keys:
-    max_logging.log(f"{k}: {model_keys[k]}")
+    log(f"{k}: {model_keys[k]}")
     if k not in raw_keys:
       raise ValueError(f"Key {k} does not exist in config {config_name}.")
     elif not isinstance(raw_keys[k], type(model_keys[k])):
@@ -529,7 +529,7 @@ def calculate_global_batch_sizes(raw_keys):
 
 
 def get_num_target_devices(raw_keys):
-  compile_topology = accelerator_to_spec_map.get_system_characteristics(raw_keys.get("compile_topology", ""))
+  compile_topology = get_system_characteristics(raw_keys.get("compile_topology", ""))
   if compile_topology is not None:
     devices_per_slice = compile_topology.devices_per_slice
     return int(devices_per_slice * raw_keys["compile_topology_num_slices"])
@@ -540,7 +540,7 @@ def get_num_target_devices(raw_keys):
 def get_num_slices(raw_keys):
   """Calculate num_slices based on number of devices."""
   if raw_keys["hardware"] == "cpu":
-    max_logging.log(" Setting num_slices=1 for CPU hardware type")
+    log(" Setting num_slices=1 for CPU hardware type")
     return 1
   if int(raw_keys["compile_topology_num_slices"]) > 0:
     return raw_keys["compile_topology_num_slices"]
