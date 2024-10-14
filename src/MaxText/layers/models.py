@@ -176,32 +176,32 @@ class Decoder(nn.Module):
     if self.config.decoder_block == "default":
       return DecoderLayer
     elif self.config.decoder_block == "llama2":
-      from layers import llama2
+      from ..layers import llama2
 
       return llama2.LlamaDecoderLayer
     elif self.config.decoder_block == "mistral":
       # TODO(ranran): update to Mistral with sliding window attention
-      from layers import mistral
+      from ..layers import mistral
 
       return mistral.MistralDecoderLayer
     elif self.config.decoder_block == "gemma":
-      from layers import gemma
+      from ..layers import gemma
 
       return gemma.GemmaDecoderLayer
     elif self.config.decoder_block == "gemma2":
-      from layers import gemma2
+      from ..layers import gemma2
 
       return gemma2.Gemma2DecoderLayer
     elif self.config.decoder_block == "gpt3":
-      from layers import gpt3
+      from ..layers import gpt3
 
       return gpt3.Gpt3DecoderLayer
     elif self.config.decoder_block == "simple":
-      from layers import simple_layer
+      from ..layers import simple_layer
 
       return simple_layer.SimpleDecoderLayer
     elif self.config.decoder_block == "simple_mlp":
-      from layers import simple_layer
+      from ..layers import simple_layer
 
       return simple_layer.SimpleMlpDecoderLayer
     else:
@@ -211,7 +211,7 @@ class Decoder(nn.Module):
     if self.config.decoder_block in ("default", "llama2", "mistral", "gemma", "gemma2", "simple", "simple_mlp"):
       return RMSNorm
     elif self.config.decoder_block == "gpt3":
-      from layers import gpt3
+      from ..layers import gpt3
 
       return functools.partial(gpt3.Gpt3LayerNorm, reductions_in_fp32=False, use_bias=True)
     else:

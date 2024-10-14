@@ -65,8 +65,8 @@ from jax.experimental import checkify
 
 from .layers import quantizations
 
-from ml_goodput_measurement import goodput
-from ml_goodput_measurement import monitoring
+# from ml_goodput_measurement import goodput
+# from ml_goodput_measurement import monitoring
 
 # pylint: disable=too-many-positional-arguments
 
@@ -194,7 +194,7 @@ def save_checkpoint(
     state,
     dataset_type="c4",
     data_iterator=None,
-    config: Optional[config] = None,
+    config = None,
 ) -> bool:
   """Wrapper for saving checkpoint."""
   if config and config.enable_checkpointing:
@@ -390,7 +390,7 @@ def train_step(model, config, state, data, dropout_rng):
           "learning/moe_lb_loss": moe_lb_loss,
           "learning/total_weights": total_weights,
           "learning/grad_norm": l2norm_pytree(grads),
-          "learning/raw_grad_norm": max_utils.l2norm_pytree(raw_grads),
+          "learning/raw_grad_norm": l2norm_pytree(raw_grads),
           "learning/param_norm": l2norm_pytree(new_state.params),
       },
       "scalars": {},
@@ -467,7 +467,7 @@ def setup_mesh_and_model(config):
   """
 
   init_rng = random.PRNGKey(config.init_weights_seed)
-  writer = initialize_summary_writer(config)
+  writer = None # initialize_summary_writer(config)
 
   # Mesh definition
   devices_array = create_device_mesh(config)
@@ -497,9 +497,9 @@ def setup_mesh_and_model(config):
     if config.enable_single_controller:
       use_ocdbt, use_zarr3 = False, False
     checkpoint_manager = create_orbax_checkpoint_manager(
-        config.checkpoint_dir,
-        config.enable_checkpointing,
-        config.async_checkpointing,
+        "", # config.checkpoint_dir
+        False, # config.enable_checkpointing,
+        False, # config.async_checkpointing,
         config.checkpoint_period,
         config.dataset_type,
         logger,
@@ -558,7 +558,7 @@ def setup_train_loop(config):
   )
 
 
-def train_loop(config, state=None):
+def train_loop(config, state=None, prejit=lambda x: x):
   """Main Training loop.
   Args:
     config:
@@ -607,9 +607,9 @@ def train_loop(config, state=None):
   per_device_tokens = calculate_tokens_training_per_device(config)
 
   # Write train config params, num model params, and XLA flags to tensorboard
-  add_text_to_summary_writer("num_model_parameters", str(num_model_parameters), writer)
-  add_text_to_summary_writer("libtpu_init_args", os.environ["LIBTPU_INIT_ARGS"], writer)
-  add_config_to_summary_writer(config, writer)
+  # add_text_to_summary_writer("num_model_parameters", str(num_model_parameters), writer)
+  # add_text_to_summary_writer("libtpu_init_args", os.environ["LIBTPU_INIT_ARGS"], writer)
+  # add_config_to_summary_writer(config, writer)
 
   # Define the compilation of functional_train, either by loading the compiled version or wrapping a new one in a jit
   if config.compiled_trainstep_file != "":
@@ -621,7 +621,7 @@ def train_loop(config, state=None):
     print("Loaded compiled function!", flush=True)
   else:
     p_train_step = jax.jit(
-        functional_train,
+        prejit(functional_train),
         in_shardings=in_shard_train,
         out_shardings=out_shard_train,
         static_argnums=static_argnums_train,
@@ -630,7 +630,7 @@ def train_loop(config, state=None):
 
     if eval_data_iterator:
       p_eval_step = jax.jit(
-          functional_eval,
+          prejit(functional_eval),
           in_shardings=in_shard_eval,
           out_shardings=out_shard_eval,
           static_argnums=static_argnums_eval,
@@ -656,7 +656,7 @@ def train_loop(config, state=None):
       jax.block_until_ready(state)  # Block until previous state finishes to start profile cleanly
       prof.activate()
 
-    with jax.StepTraceAnnotation("train", step_num=step):
+    with jax.profiler.StepTraceAnnotation("train", step_num=step):
       record_goodput(recorder, config, recorder.record_data_loading_start_time if recorder else None)
       example_batch = load_next_batch(data_iterator, example_batch, config)
       record_goodput(recorder, config, recorder.record_data_loading_end_time if recorder else None)
@@ -682,8 +682,7 @@ def train_loop(config, state=None):
         checkpoint_manager.wait_until_finished()
         sys.exit()
 
-    write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
-
+    # write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, step, config)
     if config.eval_interval > 0 and step > start_step and (step + 1) % config.eval_interval == 0:
       assert eval_data_iterator
       cumulative_eval_metrics = {
@@ -712,9 +711,10 @@ def train_loop(config, state=None):
           + cumulative_eval_metrics["scalar"]["eval/moe_lb_loss"] / eval_step_count
       )
       cumulative_eval_metrics["scalar"]["eval/avg_loss"] = eval_loss
-      write_metrics(
-          writer, local_metrics_file, running_gcs_metrics, cumulative_eval_metrics, step, config, is_training=False
-      )
+      print("cumulative_eval_metrics ", cumulative_eval_metrics)
+      # write_metrics(
+      #     writer, local_metrics_file, running_gcs_metrics, cumulative_eval_metrics, step, config, is_training=False
+      # )
       log(
           f"average loss after {step=}: {eval_step_count=}, {eval_loss=}, total_weights={cumulative_eval_metrics['scalar']['eval/total_weights']}"
       )
@@ -729,11 +729,13 @@ def train_loop(config, state=None):
 
   if checkpoint_manager is not None:
     checkpoint_manager.wait_until_finished()
-  write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, config.steps - 1, config)  # final step metrics
-  close_summary_writer(writer)
-  record_goodput(recorder, config, recorder.record_job_end_time if recorder else None)
-  clear_buffered_metrics()
-  return state
+
+  print("final_metrics ", metrics)
+  # write_metrics(writer, local_metrics_file, running_gcs_metrics, metrics, config.steps - 1, config)  # final step metrics
+  # close_summary_writer(writer)
+  # record_goodput(recorder, config, recorder.record_job_end_time if recorder else None)
+  # clear_buffered_metrics()
+  return metric
 
 
 def main(argv: Sequence[str]) -> None:

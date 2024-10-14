@@ -195,7 +195,7 @@ class AttentionOp(nn.Module):
         or (self.attention_kernel == "autoselected" and length < 128)
     ):
       return self.apply_attention_dot(query, key, value, decoder_segment_ids, model_mode)
-    elif self.attention_kernel == "flash" or self.attention_kernel == "autoselected":
+    elif False and (self.attention_kernel == "flash" or self.attention_kernel == "autoselected"):
       if isinstance(key, KVTensor):
         key = key.dequant()
       if isinstance(value, KVTensor):
