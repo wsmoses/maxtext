@@ -556,7 +556,7 @@ def setup_train_loop(config):
   )
 
 
-def train_loop(config, state=None, prejit=lambda x: x):
+def train_loop(config, state=None, prejit=lambda x, **kwargs: x):
   """Main Training loop.
   Args:
     config:
@@ -619,7 +619,12 @@ def train_loop(config, state=None, prejit=lambda x: x):
     print("Loaded compiled function!", flush=True)
   else:
     p_train_step = jax.jit(
-        prejit(functional_train),
+        prejit(functional_train,
+            in_shardings=in_shard_train,
+            out_shardings=out_shard_train,
+            static_argnums=static_argnums_train,
+            donate_argnums=donate_argnums_train,
+               ),
         in_shardings=in_shard_train,
         out_shardings=out_shard_train,
         static_argnums=static_argnums_train,
@@ -628,7 +633,12 @@ def train_loop(config, state=None, prejit=lambda x: x):
 
     if eval_data_iterator:
       p_eval_step = jax.jit(
-          prejit(functional_eval),
+          prejit(functional_eval,
+              in_shardings=in_shard_eval,
+              out_shardings=out_shard_eval,
+              static_argnums=static_argnums_eval,
+              donate_argnums=donate_argnums_eval,
+                 ),
           in_shardings=in_shard_eval,
           out_shardings=out_shard_eval,
           static_argnums=static_argnums_eval,
